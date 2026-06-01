@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>星際礦工：寶石狂熱 Cosmic Miner</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c1b, #24243e, #300030);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #00f2fe;
+            text-shadow: 0 0 15px rgba(0, 242, 254, 0.6);
+            letter-spacing: 2px;
+        }
+        #hud {
+            display: flex;
+            justify-content: space-around;
+            background: rgba(255, 255, 255, 0.07);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .hud-item span {
+            font-weight: bold;
+            color: #00f2fe;
+            text-shadow: 0 0 5px rgba(0, 242, 254, 0.3);
+        }
+        #game-canvas {
+            width: 100%;
+            height: 480px;
+            background: rgba(5, 5, 15, 0.6);
+            border: 3px solid #4facfe;
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 25px rgba(79, 172, 254, 0.3);
+        }
+        /* 寶石樣式 */
+        .gem {
+            width: 32px;
+            height: 32px;
+            position: absolute;
+            background: radial-gradient(circle at 30% 30%, #ff007f, #7f003f);
+            clip-path: polygon(50% 0%, 100% 35%, 80% 100%, 20% 100%, 0% 35%);
+            cursor: pointer;
+            transition: transform 0.1s;
+            animation: float 2s infinite alternate ease-in-out;
+        }
+        .gem:hover {
+            transform: scale(1.25);
+            filter: brightness(1.2);
+        }
+        @keyframes float {
+            0% { transform: translateY(0px) rotate(0deg); filter: drop-shadow(0 0 4px #ff007f); }
+            100% { transform: translateY(-8px) rotate(10deg); filter: drop-shadow(0 0 12px #ff007f); }
+        }
+        /* 畫面彈窗（開始、過關、結束） */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .screen h2 {
+            font-size: 2.8rem;
+            margin-bottom: 20px;
+            color: #00f2fe;
+            text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+        }
+        .screen p {
+            font-size: 1.3rem;
+            margin-bottom: 30px;
+            color: #ccc;
+            max-width: 500px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 14px 40px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #00f2fe, #4facfe);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4);
+            letter-spacing: 1px;
+        }
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(0, 242, 254, 0.7);
+        }
+        button:active {
+            transform: translateY(-1px);
+        }
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h1>星際礦工：寶石狂熱</h1>
+    
+    <div id="hud">
+        <div class="hud-item">關卡: <span id="level-display">1</span>/5</div>
+        <div class="hud-item">目標/剩餘寶石: <span id="gems-display">0</span></div>
+        <div class="hud-item">分數: <span id="score-display">0</span></div>
+        <div class="hud-item">剩餘時間: <span id="time-display">0</span> 秒</div>
+    </div>
+
+    <div id="game-canvas">
+        <div id="start-screen" class="screen">
+            <h2>星際採礦任務</h2>
+            <p>歡迎來到神祕星域！在限制的時間內，點擊畫面中出現的所有「宇宙能量寶石」以晉級。越往深處探索，寶石數量越多、速度越快！</p>
+            <button onclick="startGame()">啟動引擎，開始採礦</button>
+        </div>
+
+        <div id="next-screen" class="screen hidden">
+            <h2>任務完成！</h2>
+            <p id="next-screen-text">成功採集當前星域寶石！</p>
+            <button onclick="startNextLevel()">躍遷至下一關</button>
+        </div>
+
+        <div id="gameover-screen" class="screen hidden">
+            <h2 id="gameover-title">遊戲結束</h2>
+            <p id="gameover-text">最終採集得分：0</p>
+            <button onclick="restartGame()">重新挑戰</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 遊戲核心變數
+    let currentLevel = 1;
+    let score = 0;
+    let timeLeft = 0;
+    let timerInterval;
+    let gemsRemaining = 0;
+    
+    // 5個關卡的設定：寶石數隨關卡增加
+    const levelSettings = {
+        1: { gemCount: 8, time: 15 },
+        2: { gemCount: 15, time: 20 },
+        3: { gemCount: 22, time: 22 },
+        4: { gemCount: 30, time: 25 },
+        5: { gemCount: 40, time: 28 }
+    };
+
+    // 寶石顏色庫，讓視覺更有層次
+    const gemColors = [
+        { main: '#ff007f', dark: '#7f003f' }, // 紅寶石
+        { main: '#00f2fe', dark: '#005f73' }, // 藍寶石
+        { main: '#7fffd4', dark: '#0a5c43' }, // 翡翠綠
+        { main: '#ffff00', dark: '#808000' }, // 黃水晶
+        { main: '#b5179e', dark: '#4c0642' }  // 紫水晶
+    ];
+
+    const canvas = document.getElementById('game-canvas');
+    const levelDisplay = document.getElementById('level-display');
+    const gemsDisplay = document.getElementById('gems-display');
+    const scoreDisplay = document.getElementById('score-display');
+    const timeDisplay = document.getElementById('time-display');
+
+    // 初始化全新遊戲
+    function startGame() {
+        currentLevel = 1;
+        score = 0;
+        document.getElementById('start-screen').classList.add('hidden');
+        setupLevel();
+    }
+
+    // 設定當前關卡
+    function setupLevel() {
+        // 清除上一關殘留的寶石
+        const oldGems = canvas.querySelectorAll('.gem');
+        oldGems.forEach(gem => gem.remove());
+
+        // 載入當前關卡設定
+        const settings = levelSettings[currentLevel];
+        gemsRemaining = settings.gemCount;
+        timeLeft = settings.time;
+
+        // 更新 UI 數據
+        levelDisplay.textContent = currentLevel;
+        gemsDisplay.textContent = gemsRemaining;
+        scoreDisplay.textContent = score;
+        timeDisplay.textContent = timeLeft;
+
+        // 生成寶石
+        spawnGems(settings.gemCount);
+
+        // 啟動倒計時
+        clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // 隨機在星域中生成寶石
+    function spawnGems(count) {
+        // 扣除邊距，防止寶石生成在邊界外
+        const maxX = canvas.clientWidth - 40;
+        const maxY = canvas.clientHeight - 40;
+
+        for (let i = 0; i < count; i++) {
+            const gem = document.createElement('div');
+            gem.classList.add('gem');
+            
+            // 隨機坐標
+            const randomX = Math.floor(Math.random() * maxX) + 5;
+            const randomY = Math.floor(Math.random() * maxY) + 5;
+            gem.style.left = randomX + 'px';
+            gem.style.top = randomY + 'px';
+
+            // 隨機分配外觀與動畫延遲，製造錯落感
+            const randomColor = gemColors[Math.floor(Math.random() * gemColors.length)];
+            gem.style.background = `radial-gradient(circle at 30% 30%, ${randomColor.main}, ${randomColor.dark})`;
+            gem.style.animationDelay = (Math.random() * 1.5) + 's';
+            // 微調縮放製造大顆與小顆寶石
+            const randomScale = 0.8 + Math.random() * 0.5;
+            gem.style.transform = `scale(${randomScale})`;
+
+            // 點擊採集寶石事件
+            gem.addEventListener('click', function(e) {
+                e.stopPropagation(); // 防止點擊穿透
+                gem.remove();
+                gemsRemaining--;
+                gemsDisplay.textContent = gemsRemaining;
+                
+                // 計分邏輯：基礎 10 分 × 關卡倍率
+                score += 10 * currentLevel;
+                scoreDisplay.textContent = score;
+
+                // 檢查是否全數收集完畢
+                if (gemsRemaining === 0) {
+                    checkLevelProgress();
+                }
+            });
+
+            canvas.appendChild(gem);
+        }
+    }
+
+    // 時間倒數計時器
+    function updateTimer() {
+        timeLeft--;
+        timeDisplay.textContent = timeLeft;
+
+        if (timeLeft <= 0) {
+            endGame(false); // 時間結束，任務失敗
+        }
+    }
+
+    // 判斷是否過關或通關
+    function checkLevelProgress() {
+        clearInterval(timerInterval);
+        
+        if (currentLevel < 5) {
+            // 過關，顯示中繼畫面
+            const nextText = document.getElementById('next-screen-text');
+            nextText.textContent = `第 ${currentLevel} 星域採集完畢！即將進入第 ${currentLevel + 1} 星域，環境更加惡劣，將有 ${levelSettings[currentLevel + 1].gemCount} 顆寶石需要採集！`;
+            document.getElementById('next-screen').classList.remove('hidden');
+        } else {
+            // 5關全過，完美通關！
+            endGame(true);
+        }
+    }
+
+    // 點擊進入下一關
+    function startNextLevel() {
+        currentLevel++;
+        document.getElementById('next-screen').classList.add('hidden');
+        setupLevel();
+    }
+
+    // 遊戲結束（時間到或完美通關）
+    function endGame(isWin) {
+        clearInterval(timerInterval);
+        const gameOverScreen = document.getElementById('gameover-screen');
+        const title = document.getElementById('gameover-title');
+        const text = document.getElementById('gameover-text');
+
+        if (isWin) {
+            title.textContent = "🏆 榮耀全通關！";
+            title.style.color = "#7fffd4";
+            title.style.textShadow = "0 0 15px #7fffd4";
+            text.textContent = `太強了！你成功征服了 5 個星域，成為傳奇星際礦工！最終總得分：${score} 分`;
+        } else {
+            title.textContent = "💥 飛船能量耗盡！";
+            title.style.color = "#ff007f";
+            title.style.textShadow = "0 0 15px #ff007f";
+            text.textContent = `很遺憾，時間不夠了。你在第 ${currentLevel} 關遭遇風暴，最終得分：${score} 分`;
+        }
+
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    // 重新開始遊戲
+    function restartGame() {
+        document.getElementById('gameover-screen').classList.add('hidden');
+        startGame();
+    }
+</script>
+
+</body>
+</html>
